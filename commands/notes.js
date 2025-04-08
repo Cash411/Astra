@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 // File to store notes (JSON format)
-const NOTES_FILE = path.join(__dirname, './userNotes.json');
+const NOTES_FILE = path.join(__dirname, '../database/userNotes.json');
 
 // Load existing notes
 let userNotes = {};

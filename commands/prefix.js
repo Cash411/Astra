@@ -1,4 +1,4 @@
-const { getPrefix, updatePrefix } = require('../commands/prefixHandler');
+const { getPrefix, updatePrefix } = require('./prefixHandler');
 
 module.exports = async (sock, sender, text) => {
     console.log(`✅ prefix.js has been triggered`);  // Confirm it runs

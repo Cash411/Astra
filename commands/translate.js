@@ -1,30 +1,36 @@
 const { getPrefix } = require('./prefixHandler');
-const translate = require('@vitalets/google-translate-api');
+const translate = require('@iamtraction/google-translate');
 
 module.exports = async (sock, sender, text, msg) => {
     try {
         console.log('Translate command triggered ☘️Ⓜ️');
 
-        // Check if the message is a reply
+        const prefix = await getPrefix();
+        const commandText = text.trim().startsWith(prefix) ? text.slice(prefix.length).trim() : text.trim();
+        const args = commandText.split(/\s+/);
+        const command = args.shift()?.toLowerCase();
+
+        if (command !== 'translate') return;
+
         const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         const textToTranslate = quotedMsg 
             ? quotedMsg.conversation || quotedMsg.extendedTextMessage?.text
-            : text.split(' ').slice(1).join(' ').trim(); // Remove ".translate"
+            : args.join(' ').trim();
 
         if (!textToTranslate) {
+            console.log('❌ No text to translate');
             await sock.sendMessage(sender, { 
-                text: '❌ No text to translate! Either reply to a message or type:\n`.translate your text here` ☘️Ⓜ️' 
+                text: `❌ No text to translate! Either reply to a message or type:\n\`${prefix}translate your text here\` ☘️Ⓜ️` 
             });
             return;
         }
 
-        // Translate to English (forced)
+        console.log(`🌍 Translating: "${textToTranslate}"`);
         const res = await translate(textToTranslate, { to: 'en' });
 
-        // Send the result with original text
         await sock.sendMessage(sender, { 
             text: `🌍 *Translated to English:*\n${res.text}\n\n🔹 *Original:*\n${textToTranslate} ☘️Ⓜ️`,
-            mentions: [msg.key.participant || sender] // Mention sender
+            mentions: [msg.key.participant || sender]
         });
 
     } catch (error) {

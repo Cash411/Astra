@@ -1,54 +1,62 @@
-const ytdl = require('ytdl-core');
-const { getPrefix } = require('./prefixHandler');
+const fsPromises = require('node:fs/promises');
+const yts = require('yt-search');
+const { downloadAudio, cleanup } = require('../lib/downloader');
+
+function secondString(seconds) {
+    seconds = Number(seconds);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h > 0 ? `${h}h ` : ''}${m}m ${s}s`.trim();
+}
 
 module.exports = async (sock, sender, text, msg) => {
-    const prefix = await getPrefix();
-    const query = text.split(' ').slice(1).join(' ').trim();
+    console.log('🎵 Starting .play command');
+    const songName = text.split(' ').slice(1).join(' ').trim();
+    if (!songName) {
+        console.log('❌ No song name provided');
+        await sock.sendMessage(sender, { text: '```Usage: .play <song name> ☘️Ⓜ️```' });
+        return;
+    }
 
     try {
-        if (!query) {
-            return sock.sendMessage(sender, {
-                text: `\`\`\`❌ Please provide a song name or YouTube URL!\nExample: ${prefix}play Shape of You\`\`\` ☘️Ⓜ️`
-            });
+        console.log(`🔍 Searching YouTube for: ${songName}`);
+        const searchResults = await yts({ query: songName, hl: 'en', gl: 'US' });
+        const video = searchResults.videos[0];
+        if (!video) {
+            console.log('❌ Song not found');
+            await sock.sendMessage(sender, { text: '```No song found on YouTube ☘️Ⓜ️```' });
+            return;
         }
 
-        // Search for the video
-        const videoInfo = await ytdl.getInfo(query);
-        const videoTitle = videoInfo.videoDetails.title;
-        const videoUrl = videoInfo.videoDetails.video_url;
+        const videoUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+        console.log(`🎥 Found video: ${videoUrl}`);
 
-        // Generate audio stream
-        const audioStream = ytdl(videoUrl, { filter: 'audioonly', quality: 'highestaudio' });
+        const txt = '```\n' +
+                    '✨ ASTRA PLAYER ✨\n' +
+                    `  🎧 Title: ${video.title}\n` +
+                    `  ⏳ Duration: ${secondString(video.duration.seconds)}\n` +
+                    `  📅 Posted: ${video.ago || 'Unknown'}\n` +
+                    `  👤 Channel: ${video.author.name || 'Unknown'}\n` +
+                    '  ⚡ Fetching audio...\n' +
+                    '``` ☘️Ⓜ️';
+        await sock.sendMessage(sender, { text: txt }, { quoted: msg });
 
-        // Host the file temporarily (you can use a service like ngrok or a cloud storage bucket)
-        const tempFilePath = `./downloads/${videoTitle.replace(/[\/\\?%*:|"<>]/g, '-')}.mp3`;
-        audioStream.pipe(fs.createWriteStream(tempFilePath));
+        const audioFile = await downloadAudio(videoUrl, video.videoId);
+        console.log('📤 Sending audio');
+        const audioBuffer = await fsPromises.readFile(audioFile);
+        const sentMsg = await sock.sendMessage(sender, {
+            audio: audioBuffer,
+            mimetype: 'audio/mp4',
+            ptt: false,
+        }, { quoted: msg });
+        console.log('✅ Audio sent:', sentMsg.key);
 
-        // Wait for the file to finish downloading
-        await new Promise((resolve, reject) => {
-            audioStream.on('end', resolve);
-            audioStream.on('error', reject);
-        });
-
-        // Send the audio file
-        await sock.sendMessage(sender, {
-            document: fs.readFileSync(tempFilePath),
-            fileName: `${videoTitle}.mp3`,
-            mimetype: 'audio/mpeg'
-        });
-
-        // Clean up the temporary file
-        fs.unlinkSync(tempFilePath);
-
-        // Confirmation message
-        await sock.sendMessage(sender, {
-            text: `\`\`\`✅ Successfully sent: ${videoTitle}\`\`\` ☘️Ⓜ️`
-        });
+        await sock.sendMessage(sender, { text: '```🎉 Audio delivered! Enjoy ☘️Ⓜ️```' });
+        await cleanup(audioFile);
 
     } catch (error) {
-        console.error('YouTube download error:', error);
-        await sock.sendMessage(sender, {
-            text: `\`\`\`❌ Failed to download the song.\n\n${error.message}\`\`\` ☘️Ⓜ️`
-        });
+        console.error('Error in .play:', error);
+        await sock.sendMessage(sender, { text: '```❌ Audio fetch failed: ' + error.message + ' ☘️Ⓜ️```' });
     }
 };

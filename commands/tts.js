@@ -1,65 +1,58 @@
 const { getPrefix } = require('./prefixHandler');
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
 
 module.exports = async (sock, sender, text, msg) => {
     try {
+        console.log('🗣️ Starting .tts command');
         const prefix = await getPrefix();
-        const speechText = text.split(' ').slice(1).join(' ').trim();
+        const commandText = text.trim().startsWith(prefix) ? text.slice(prefix.length).trim() : text.trim();
+        const args = commandText.split(/\s+/);
+        const command = args.shift()?.toLowerCase();
 
+        if (command !== 'tts') return;
+
+        const speechText = args.join(' ').trim();
         if (!speechText) {
-            return await sock.sendMessage(sender, {
-                text: `\`\`\`❌ Usage: ${prefix}voice <text>\nExample: ${prefix}voice Hello world\`\`\` ☘️Ⓜ️`
+            console.log('❌ No text provided');
+            await sock.sendMessage(sender, {
+                text: `\`\`\`❌ Usage: ${prefix}tts <text>\nExample: ${prefix}tts Hello world\`\`\` ☘️Ⓜ️`
             });
+            return;
         }
 
-        // Show typing indicator
+        console.log(`🔊 Generating speech for: "${speechText}"`);
         await sock.sendPresenceUpdate('composing', sender);
 
-        // Free TTS APIs (no auth required)
-        const ttsServices = [
-            {
-                name: "VoiceRSS",
-                url: `http://api.voicerss.org/?key=5a7d4b5b3b1d4c4d4d4d4d4d4&hl=en-us&src=${encodeURIComponent(speechText)}&f=16khz_16bit_stereo`
-            },
-            {
-                name: "GoogleTranslateTTS",
-                url: `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(speechText)}`
-            }
-        ];
-
-        let audioBuffer;
-        for (const service of ttsServices) {
-            try {
-                const response = await axios.get(service.url, {
-                    responseType: 'arraybuffer',
-                    timeout: 15000
-                });
-                
-                if (response.data && response.data.byteLength > 0) {
-                    audioBuffer = Buffer.from(response.data);
-                    break;
-                }
-            } catch (err) {
-                console.warn(`${service.name} TTS failed:`, err.message);
-            }
+        const apiKey = process.env.VOICERSS_API_KEY;
+        if (!apiKey) {
+            throw new Error('VoiceRSS API key not found in .env');
         }
 
-        if (!audioBuffer) throw new Error("All TTS services failed");
+        const url = `http://api.voicerss.org/?key=${apiKey}&hl=en-us&src=${encodeURIComponent(speechText)}&f=16khz_16bit_stereo`;
+        console.log('🌐 Requesting TTS from VoiceRSS...');
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 15000
+        });
 
-        // Send as voice message
+        console.log(`📥 Response size: ${response.data.byteLength} bytes`);
+        if (response.data.byteLength < 1000) {
+            throw new Error('Audio data too small—check API key or text');
+        }
+
+        const audioBuffer = Buffer.from(response.data);
+        console.log(`📤 Sending audio, size: ${audioBuffer.length} bytes`);
         await sock.sendMessage(sender, {
             audio: audioBuffer,
-            mimetype: 'audio/mpeg',
-            ptt: true, // Push-to-talk format for WhatsApp
+            mimetype: 'audio/mpeg', // VoiceRSS returns MP3
+            ptt: true,
             caption: `\`\`\`🗣️ "${speechText}"\`\`\` ☘️Ⓜ️`
         });
 
     } catch (error) {
         console.error('TTS error:', error);
         await sock.sendMessage(sender, {
-            text: '```❌ Voice generation failed. Try:\n1. Shorter text\n2. Different words\n3. Wait 1 minute``` ☘️Ⓜ️'
+            text: '```❌ Voice generation failed. Try:\n1. Shorter text\n2. Different words\n3. Check API key``` ☘️Ⓜ️'
         });
     }
 };

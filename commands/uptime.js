@@ -1,5 +1,5 @@
-const { getPrefix } = require('../commands/prefixHandler'); // Ensure correct path
-const process = require('process'); // Required to access uptime
+const { getPrefix } = require('../commands/prefixHandler'); 
+const process = require('process'); 
 
 module.exports = async (sock, sender, text) => {
     let currentPrefix = "."; // Default prefix

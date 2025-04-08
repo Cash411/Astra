@@ -1,10 +1,8 @@
 const { getPrefix } = require('./prefixHandler');
-const { downloadContentFromMessage } = require('@adiwajshing/baileys');
-
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 module.exports = async (sock, sender, text, msg) => {
     try {
         console.log('VV command triggered');
-
         // Check if the message is a reply
         const repliedMessage = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         if (!repliedMessage) {
@@ -13,7 +11,6 @@ module.exports = async (sock, sender, text, msg) => {
             });
             return;
         }
-
         // Extract the media type (image, video, or audio)
         const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage'];
         const mediaType = mediaTypes.find(type => repliedMessage[type]);
@@ -23,10 +20,8 @@ module.exports = async (sock, sender, text, msg) => {
             });
             return;
         }
-
         // Extract the media message
         const mediaMessage = repliedMessage[mediaType];
-
         // Download the media using downloadContentFromMessage
         const bufferArray = [];
         const stream = await downloadContentFromMessage(mediaMessage, mediaType.split('Message')[0]);
@@ -34,7 +29,6 @@ module.exports = async (sock, sender, text, msg) => {
             bufferArray.push(chunk);
         }
         const buffer = Buffer.concat(bufferArray);
-
         // Resend the media without the "View Once" flag
         await sock.sendMessage(sender, {
             [mediaType.split('Message')[0]]: buffer, // Use the media type (e.g., image, video)
@@ -42,7 +36,6 @@ module.exports = async (sock, sender, text, msg) => {
             mimetype: mediaMessage.mimetype,        // Preserve the MIME type
             fileName: mediaMessage.fileName || undefined, // Preserve the file name (if any)
         });
-
         // Notify the user
         await sock.sendMessage(sender, { text: ' ☘️Ⓜ️' });
     } catch (error) {

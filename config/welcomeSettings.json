@@ -1,0 +1,54 @@
+{
+  "welcome": {
+    "enabled": false,
+    "message": "```👋 Welcome to the group, {user}! We're glad to have you here. ☘️Ⓜ️```"
+  },
+  "goodbye": {
+    "enabled": false,
+    "message": "```👋 Goodbye, {user}! We'll miss you. ☘️Ⓜ️```"
+  },
+  "groups": {
+    "120363417185503194@g.us": {
+      "welcome": {
+        "message": "@user welcome boss",
+        "useGroupPfp": false,
+        "useUserPfp": true,
+        "enabled": true
+      },
+      "goodbye": {
+        "enabled": true,
+        "message": "@user bye from @group-name"
+      }
+    },
+    "120363417492456098@g.us": {
+      "welcome": {
+        "enabled": false,
+        "message": "```👋 Welcome to the group, {user}! We're glad to have you here. ☘️Ⓜ️```"
+      },
+      "goodbye": {
+        "enabled": false,
+        "message": "```👋 Goodbye, {user}! We'll miss you. ☘️Ⓜ️```"
+      }
+    },
+    "120363317252613390@g.us": {
+      "welcome": {
+        "enabled": false,
+        "message": "```👋 Welcome to the group, {user}! We're glad to have you here. ☘️Ⓜ️```"
+      },
+      "goodbye": {
+        "enabled": false,
+        "message": "```👋 Goodbye, {user}! We'll miss you. ☘️Ⓜ️```"
+      }
+    },
+    "120363323103439241@g.us": {
+      "welcome": {
+        "enabled": false,
+        "message": "```👋 Welcome to the group, {user}! We're glad to have you here. ☘️Ⓜ️```"
+      },
+      "goodbye": {
+        "enabled": false,
+        "message": "```👋 Goodbye, {user}! We'll miss you. ☘️Ⓜ️```"
+      }
+    }
+  }
+}

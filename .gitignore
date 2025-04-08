@@ -1,31 +1,5 @@
-cat > .gitignore <<'EOF'
-# Dependency directories
 node_modules/
-
-# Session and authentication files
-auth/
-
-# Temporary files
-temp/
-
-# Environment variables
-.env
-.env.*
-
-# Log files
+database/
 *.log
-logs/
-
-# System files
-.DS_Store
-Thumbs.db
-
-# IDE files
-.vscode/
-.idea/
-
-# Bot specific ignores
-*.mp3
-*.mp4
-*.temp
-EOF
+.env
+auth/

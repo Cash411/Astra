@@ -26,16 +26,39 @@ module.exports = async (sock, sender, text, msg) => {
                 });
             }
 
+            // Test the key
+            try {
+                await axios.post(
+                    'https://api.deepseek.com/v1/chat/completions',
+                    {
+                        model: "deepseek-chat",
+                        messages: [{ role: "user", content: "test" }],
+                        temperature: 0.7
+                    },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        timeout: 5000
+                    }
+                );
+            } catch (err) {
+                return await sock.sendMessage(sender, {
+                    text: '```❌ Invalid API Key! Please verify your key.``` ☘️Ⓜ️'
+                });
+            }
+
             fs.writeFileSync(CONFIG_PATH, JSON.stringify({ apiKey }, null, 2));
             return await sock.sendMessage(sender, {
-                text: '```✅ DeepSeek API key saved securely!``` ☘️Ⓜ️'
+                text: '```✅ DeepSeek API key validated and saved!``` ☘️Ⓜ️'
             });
         }
 
         // Check if configured
         if (!fs.existsSync(CONFIG_PATH)) {
             return await sock.sendMessage(sender, {
-                text: `\`\`\❌ DeepSeek not configured\n\n1. Get API key: https://platform.deepseek.com\n2. Run: ${prefix}deepseek setup <your_key>\`\`\` ☘️Ⓜ️`
+                text: `\`\`\`❌ DeepSeek not configured\n\n1. Get API key: https://platform.deepseek.com\n2. Run: ${prefix}deepseek setup <your_key>\`\`\` ☘️Ⓜ️`
             });
         }
 

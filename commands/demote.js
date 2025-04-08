@@ -1,3 +1,4 @@
+const { getPrefix } = require('./prefixHandler');
 module.exports = async (sock, sender, text, msg) => {
     try {
         console.log('Demote command triggered');

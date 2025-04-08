@@ -1,64 +1,67 @@
-const { getPrefix } = require('./prefixHandler');
-const { downloadContentFromMessage, MessageType } = require('@whiskeysockets/baileys');
-const fs = require('fs');
+const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const path = require('path');
-const { exec } = require('child_process');
+const fs = require('fs').promises;
+const ffmpeg = require('fluent-ffmpeg');
+const { getPrefix } = require('./prefixHandler');
 
-module.exports = async (sock, sender, text, msg) => {
+async function imgToSticker(sock, sender, text, msg) {
     try {
-        if (!msg.message.imageMessage && !msg.message.videoMessage) {
-            await sock.sendMessage(sender, { text: '❌ Please reply to an image or video with the command .sticker' });
+        // Check FFmpeg availability
+        const hasFfmpeg = await new Promise(resolve => {
+            ffmpeg.getAvailableFormats(err => resolve(!err));
+        }).catch(() => false);
+
+        const quotedMessage = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        if (!quotedMessage || (!quotedMessage.imageMessage && !quotedMessage.videoMessage)) {
+            await sock.sendMessage(sender, { text: '```❌ Please reply to an image or video with .sticker``` ☘️Ⓜ️' });
             return;
         }
 
-        let mediaMessage;
-        let mediaType;
-        
-        // Check if the media is an image or video
-        if (msg.message.imageMessage) {
-            mediaMessage = msg.message.imageMessage;
-            mediaType = MessageType.image;
-        } else if (msg.message.videoMessage) {
-            mediaMessage = msg.message.videoMessage;
-            mediaType = MessageType.video;
+        const isVideo = !!quotedMessage.videoMessage;
+        const mediaMessage = isVideo ? quotedMessage.videoMessage : quotedMessage.imageMessage;
+
+        // Block video if FFmpeg is missing
+        if (isVideo && !hasFfmpeg) {
+            await sock.sendMessage(sender, { text: '```❌ Can’t convert video to sticker—feature coming soon! Try an image instead.``` ☘️Ⓜ️' });
+            return;
         }
 
-        // Download the media content
-        const stream = await downloadContentFromMessage(mediaMessage, mediaType);
-        const filePath = path.join(__dirname, 'temp', `media.${mediaType === MessageType.image ? 'jpg' : 'mp4'}`);
+        const media = await downloadMediaMessage(
+            {
+                key: msg.message.extendedTextMessage.contextInfo.stanzaId ? {
+                    remoteJid: sender,
+                    id: msg.message.extendedTextMessage.contextInfo.stanzaId,
+                    participant: msg.message.extendedTextMessage.contextInfo.participant
+                } : msg.key,
+                message: quotedMessage
+            },
+            'buffer',
+            { sock }
+        );
+        const mimeType = mediaMessage.mimetype;
+        const fileExt = mimeType.split('/')[1];
 
-        // Create a writable stream to save the file
-        const writeStream = fs.createWriteStream(filePath);
-        stream.pipe(writeStream);
+        const tempFilePath = path.join(__dirname, 'temp', `${Date.now()}.${fileExt}`);
+        await fs.writeFile(tempFilePath, media);
 
-        writeStream.on('finish', async () => {
-            const stickerPath = path.join(__dirname, 'temp', 'sticker.webp');
-            if (mediaType === MessageType.image) {
-                // Convert image to sticker using WebP format
-                exec(`cwebp -q 80 ${filePath} -o ${stickerPath}`, async (error) => {
-                    if (error) {
-                        await sock.sendMessage(sender, { text: '❌ Error converting image to sticker' });
-                        return;
-                    }
-                    await sock.sendMessage(sender, { sticker: fs.readFileSync(stickerPath) });
-                    fs.unlinkSync(filePath);
-                    fs.unlinkSync(stickerPath); // Clean up temporary files
-                });
-            } else if (mediaType === MessageType.video) {
-                // Convert video to sticker (GIF or WebP conversion)
-                exec(`ffmpeg -i ${filePath} -vf "scale=256:256" -vcodec vp8 -an -y ${stickerPath}`, async (error) => {
-                    if (error) {
-                        await sock.sendMessage(sender, { text: '❌ Error converting video to sticker' });
-                        return;
-                    }
-                    await sock.sendMessage(sender, { sticker: fs.readFileSync(stickerPath) });
-                    fs.unlinkSync(filePath);
-                    fs.unlinkSync(stickerPath); // Clean up temporary files
-                });
-            }
+        const sticker = new Sticker(tempFilePath, {
+            pack: ' ',
+            author: 'Astra☘️Ⓜ️',
+            type: StickerTypes.FULL,
+            quality: isVideo ? 50 : 70,
+            ...(isVideo && { fps: 15, loop: true })
         });
+
+        const stickerBuffer = await sticker.toBuffer();
+        await sock.sendMessage(sender, { sticker: stickerBuffer }, { quoted: msg });
+
+        await fs.unlink(tempFilePath);
+
     } catch (error) {
-        console.error('❌ Error in .sticker command:', error);
-        await sock.sendMessage(sender, { text: '❌ An error occurred while processing your sticker request.' });
+        console.error('Error creating sticker:', error);
+        await sock.sendMessage(sender, { text: '```❌ Failed to create sticker. Try again later.``` ☘️Ⓜ️' });
     }
-};
+}
+
+module.exports = imgToSticker;
