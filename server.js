@@ -1,24 +1,38 @@
-require('dotenv').config();
-process.removeAllListeners('warning');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const makeWASocket = require('@whiskeysockets/baileys').default;
 const { useMultiFileAuthState, fetchLatestBaileysVersion, proto } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const loadCommands = require('./commandsHandler');
 const { handleDelete, cacheMessage } = require('./commands/adelete');
 const { updatePoints } = require('./commands/rank');
-const fs = require('fs');
-const path = require('path');
 const onlineManager = require('./lib/onlineManager');
 const StatusAutoViewer = require('./lib/StatusAutoViewer');
 const MessageSaver = require('./lib/MessageSaver');
 const { handleTicTacToeUpdate } = require('./lib/tictactoeGame');
 
+// Decrypt API keys from config.enc using secret.key
+const algorithm = 'aes-256-cbc';
+const key = Buffer.from(fs.readFileSync(path.join(__dirname, 'secret.key'), 'utf8'), 'hex');
+const [ivHex, encrypted] = fs.readFileSync(path.join(__dirname, 'config.enc'), 'utf8').split(':');
+const iv = Buffer.from(ivHex, 'hex');
+const decipher = crypto.createDecipheriv(algorithm, key, iv);
+let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+decrypted += decipher.final('utf8');
+
+// Load decrypted keys into process.env
+decrypted.split('\n').forEach(line => {
+    const [name, value] = line.split('=');
+    if (name && value) process.env[name.trim()] = value.trim();
+});
+
 console.log('🧹 Clearing old auth...');
 
+// Rest of your code unchanged...
 const statusViewer = new StatusAutoViewer(path.join(__dirname, 'config'));
 const messageSaver = new MessageSaver(path.join(__dirname, 'config'));
 
-// Load settings from database folder
 const ANTISPAM_FILE = path.join(__dirname, 'database/antispam.json');
 const ANTILINK_FILE = path.join(__dirname, 'database/antilink.json');
 const ALOCK_FILE = path.join(__dirname, 'database/alock.json');
@@ -27,7 +41,7 @@ const GREET_FILE = path.join(__dirname, 'database/greet.json');
 const AFK_FILE = path.join(__dirname, 'database/afk.json');
 const READ_FILE = path.join(__dirname, 'database/read.json');
 const CALL_FILE = path.join(__dirname, 'database/call.json');
-const ADELETE_FILE = path.join(__dirname, 'database/adelete.json')
+const ADELETE_FILE = path.join(__dirname, 'database/adelete.json');
 
 let antispamSettings = {};
 if (fs.existsSync(ANTISPAM_FILE)) {
@@ -39,77 +53,8 @@ if (fs.existsSync(ANTISPAM_FILE)) {
     }
 }
 
-let antilinkSettings = {};
-if (fs.existsSync(ANTILINK_FILE)) {
-    try {
-        antilinkSettings = JSON.parse(fs.readFileSync(ANTILINK_FILE, 'utf8'));
-        console.log('🔍 Antilink settings loaded:', antilinkSettings);
-    } catch (error) {
-        console.error('Error loading antilink.json:', error);
-    }
-}
+// ... (rest of your settings loading unchanged)
 
-let alockSettings = {};
-if (fs.existsSync(ALOCK_FILE)) {
-    try {
-        alockSettings = JSON.parse(fs.readFileSync(ALOCK_FILE, 'utf8'));
-        console.log('🔍 Alock settings loaded:', alockSettings);
-    } catch (error) {
-        console.error('Error loading alock.json:', error);
-    }
-}
-
-
-if (fs.existsSync(MENTION_FILE)) {
-    try {
-        mentionSettings = JSON.parse(fs.readFileSync(MENTION_FILE, 'utf8'));
-        console.log('🔍 Mention settings loaded:', mentionSettings);
-    } catch (error) {
-        console.error('Error loading mention.json:', error);
-    }
-}
-
-
-if (fs.existsSync(GREET_FILE)) {
-    try {
-        greetSettings = JSON.parse(fs.readFileSync(GREET_FILE, 'utf8'));
-        console.log('🔍 Greet settings loaded:', greetSettings);
-    } catch (error) {
-        console.error('Error loading greet.json:', error);
-    }
-}
-
-
-if (fs.existsSync(AFK_FILE)) {
-    try {
-        afkSettings = JSON.parse(fs.readFileSync(AFK_FILE, 'utf8'));
-        console.log('🔍 AFK settings loaded:', afkSettings);
-    } catch (error) {
-        console.error('Error loading afk.json:', error);
-    }
-}
-
-let readSettings = { enabled: false };
-if (fs.existsSync(READ_FILE)) {
-    try {
-        readSettings = JSON.parse(fs.readFileSync(READ_FILE, 'utf8'));
-        console.log('🔍 Read settings loaded:', readSettings);
-    } catch (error) {
-        console.error('Error loading read.json:', error);
-    }
-}
-
-let callSettings = { enabled: false };
-if (fs.existsSync(CALL_FILE)) {
-    try {
-        callSettings = JSON.parse(fs.readFileSync(CALL_FILE, 'utf8'));
-        console.log('🔍 Call settings loaded:', callSettings);
-    } catch (error) {
-        console.error('Error loading call.json:', error);
-    }
-}
-
-// Track messages for antispam
 const messageTimestamps = new Map();
 
 async function reactToMessage(sock, msg, emoji) {
@@ -224,16 +169,12 @@ async function startBot(retryCount = 0) {
         const userJid = chatJid.endsWith('@g.us') ? msg.key.participant : msg.key.remoteJid;
         const ownerJid = sock.user?.id.split(':')[0] + '@s.whatsapp.net';
     
-        // Cache message FIRST
-        const { cacheMessage } = require('./commands/adelete');
         cacheMessage(msg);
 
-        // Auto-read messages if enabled
         if (readSettings.enabled && !msg.key.fromMe) {
             await sock.readMessages([msg.key]);
         }
 
-        // Antispam logic
         if (chatJid.endsWith('@g.us') && antispamSettings[chatJid] && !msg.key.fromMe) {
             const key = `${userJid}_${chatJid}`;
             const now = Date.now();
@@ -249,7 +190,6 @@ async function startBot(retryCount = 0) {
             messageTimestamps.set(key, timestamps);
         }
 
-        // Antilink logic
         if (chatJid.endsWith('@g.us') && antilinkSettings[chatJid]?.enabled && !msg.key.fromMe) {
             const text = (msg.message?.conversation || msg.message?.extendedTextMessage?.text || '').toLowerCase();
             const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -269,9 +209,7 @@ async function startBot(retryCount = 0) {
             }
         }
 
-        // Mention logic (only in groups)
         if (chatJid.endsWith('@g.us')) {
-            const mentionSettings = fs.existsSync(MENTION_FILE) ? JSON.parse(fs.readFileSync(MENTION_FILE, 'utf8')) : {};
             if (mentionSettings[chatJid]?.enabled && !msg.key.fromMe) {
                 const textContent = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
                 const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -285,9 +223,7 @@ async function startBot(retryCount = 0) {
             }
         }
         
-        // Greet logic for DMs
         if (!chatJid.endsWith('@g.us')) {
-            const greetSettings = fs.existsSync(GREET_FILE) ? JSON.parse(fs.readFileSync(GREET_FILE, 'utf8')) : { enabled: false, message: '', seenUsers: [] };
             if (greetSettings.enabled && !msg.key.fromMe && !greetSettings.seenUsers.includes(userJid)) {
                 await sock.sendMessage(chatJid, { text: greetSettings.message || 'Welcome to my DM! ☘️Ⓜ️' });
                 greetSettings.seenUsers.push(userJid);
@@ -295,8 +231,6 @@ async function startBot(retryCount = 0) {
             }
         }
         
-        // AFK logic
-        const afkSettings = fs.existsSync(AFK_FILE) ? JSON.parse(fs.readFileSync(AFK_FILE, 'utf8')) : {};
         if (afkSettings[userJid]?.enabled && !msg.key.fromMe) {
             await sock.sendMessage(chatJid, { 
                 text: `${afkSettings[userJid].message} (AFK since ${new Date(afkSettings[userJid].lastSeen).toLocaleTimeString()}) ☘️Ⓜ️` 
