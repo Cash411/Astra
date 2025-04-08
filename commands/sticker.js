@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs').promises;
 const ffmpeg = require('fluent-ffmpeg');
 const { getPrefix } = require('./prefixHandler');
+const TEMP_DIR = path.join(__dirname, '../temp_stickers');
+if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
 
 async function imgToSticker(sock, sender, text, msg) {
     try {
