@@ -6,3 +6,4 @@ auth/
 creds.json
 config/gemini.json
 config/deepseek.json
+temp_stickers/
