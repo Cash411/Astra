@@ -3,3 +3,6 @@ database/
 *.log
 .env
 auth/
+creds.json
+config/gemini.json
+config/deepseek.json
